@@ -299,7 +299,7 @@ const sjs = (schema) => {
       if (i === length) break;
       const { method, isArray, find } = queue[i];
       const raw = find(obj);
-
+      // 数组的话，执行对应处理的函数，默认是 JSON.stringify
       const ready = isArray
         ? _makeArr(raw, method)
         : raw;
@@ -307,7 +307,7 @@ const sjs = (schema) => {
 
       i += 1;
     }
-	  // 处理最后一个 chunk
+    // 处理最后一个 chunk
     const { flag, pure, prevUndef } = chunks[chunks.length - 1];
 
     return temp + (flag ? prevUndef : pure);
