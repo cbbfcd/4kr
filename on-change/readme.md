@@ -325,7 +325,7 @@ proxy1.a.b.c.push(4);
 
 觉得有点绕的话可以参考下边这个流程图（少了一条关键线路，发现了吗）：
 
-![on-change-01](/Users/huangteng01/learn/4kr/imgs/on-change-01.png)
+![on-change-01](../imgs/on-change-01.png)
 
 通过两个锁来控制其执行流程，达到过滤多次函数触发的根本原因在于代理中的这些 `traps` 具有同步性，好比你执行 `a.b.c.push()`，这个操作会触发 `apply` （这里先不管 `get`），然后 `push` 操作会触发 `set` 的执行，这个时候没有改变，所以最终 `onChange` 不会触发，但是如果你执行 `a.b.c.push(1)`，同样进入 `apply` 之后，加锁，然后执行 `set`，这个时候 `previous !== value`，所以设置 `changed = true`，回到 `apply` 中，因为 `changed` 为真，所以会触发 `onChange`。
 
