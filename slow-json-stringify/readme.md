@@ -130,7 +130,7 @@ const _prepareString = schema => JSON.stringify(schema, (_, value) => {
     _validator(value);
 
     if (isArray) return value;
-		// 函数最终会被忽略的，其它基本类型会拼接成 `string__sjs`,`number__sjs`,[`array=simple__sjs`]
+    // 函数最终会被忽略的，其它基本类型会拼接成 `string__sjs`,`number__sjs`,[`array=simple__sjs`]
     return typeof value === 'function' ? value : `${value}__sjs`;
   }
   // 最终得到的像这样:{"a":"string__sjs","b":["array-simple__sjs"],"c":{"d":"number__sjs"}}
