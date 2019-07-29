@@ -116,11 +116,13 @@ export function toElement(str) {
 
 - `innerHTML` 
 
-    ```javascript
+```javascript
 let fragment = document.createElement('body');
 fragment.innerHTML = htmlStr;
 return fragment.firstChild;
-    ```
+```
+
+
 
 - `DOMParser`
 
@@ -129,11 +131,15 @@ let fragment = new DOMParser().parseFromString(htmlStr, 'text/html');
 return fragment.firstChild;
 ```
 
+
+
 - `DocumentFragment`
 
 ```javascript
 let fragment = document.createRange().createContextualFragment(htmlStr);
 return fragment.firstChild;
 ```
+
+
 
 感兴趣的童鞋可以做 `benchmark`，肯定 `DOMParser` 是最慢的。而 `innerHTML` 和 `DocumentFragment` 的方式差不太多。当然最快的是`DocumentFragment`, 具体可参考[三者性能比较](https://jsperf.com/str-to-element/1)。
