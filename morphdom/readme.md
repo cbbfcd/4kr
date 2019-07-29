@@ -60,3 +60,80 @@ var morphedNode = morphdom(fromNode, toNode, {
 
 # Plot
 
+### `index.js`
+
+导出 `morphdom` 方法。
+
+```javascript
+var morphdom = morphdomFactory(morphAttrs);
+export default morphdom
+```
+
+### `util.js`
+
+工具方法着实有趣，值得探究一下：
+
+```javascript
+var range;
+// html 的命名空间，目的就是基于 xml 的标记语言混用的时候能够辨别
+// https://www.w3.org/TR/2004/REC-DOM-Level-3-Core-20040407/glossary.html#dt-namespaceURI
+var NS_XHTML = 'http://www.w3.org/1999/xhtml';
+var doc = typeof document === 'undefined' ? undefined : document;
+
+/**
+* 把字符串形式的节点转为 DOM 对象
+* toElement('<h1>hello world</h1>') => h1
+* 等同于：
+* var html = new DOMParser().parseFromString(str, 'text/html');
+* return html.body.firstChild;
+*
+* 最有意思的就是其实现这一功能的方式，利用了 Range 对象（IE9+）
+* https://developer.mozilla.org/zh-CN/docs/Web/API/Range
+*/
+export function toElement(str) {
+  if(!range && doc.createRange) {
+     range = doc.createRange();
+     range.selectNode(doc.body);
+  }
+  var fragment;
+  // https://developer.mozilla.org/zh-CN/docs/Web/API/Range/%E5%88%9B%E5%BB%BA%E4%B8%8A%E4%B8%8B%E6%96%87%E7%89%87%E6%AE%B5
+  if(range && range.createContextualFragment) {
+    // DocumentFragment 不会引起回流
+    // DocumentFragment 也可以直接添加到 DOM 中，不会添加自己，只是 append 其子元素节点
+    fragment = range.createContextualFragment(str);
+  }else {
+    // innerHTML 的方式
+    fragment = document.createElement('body');
+    fragment.innerHTML = str;
+  }
+  // 貌似 childNodes[0] 和 firstChild 差不多，都有坑（会取文本节点）
+  // 对 morphdom 来说，文本节点并不是多余的
+  return fragment.childNodes[0];
+}
+```
+
+如果是将一段字符串文本转化为实际的 `DOM` 节点的话，大致有三种方式：
+
+- `innerHTML` 
+
+    ```javascript
+let fragment = document.createElement('body');
+fragment.innerHTML = htmlStr;
+return fragment.firstChild;
+    ```
+
+- `DOMParser`
+
+```javascript
+let fragment = new DOMParser().parseFromString(htmlStr, 'text/html');
+return fragment.firstChild;
+```
+
+- `DocumentFragment`
+
+```javascript
+let fragment = document.createRange().createContextualFragment(htmlStr);
+return fragment.firstChild;
+```
+
+感兴趣的童鞋可以做 `benchmark`，肯定 `DOMParser` 是最慢的。而 `innerHTML` 和 `DocumentFragment` 的方式差不太多。当然最快的是`DocumentFragment`, 具体可参考[三者性能比较](https://jsperf.com/str-to-element/1)。
