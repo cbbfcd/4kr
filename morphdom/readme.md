@@ -128,7 +128,7 @@ return fragment.firstChild;
 
 ```javascript
 let fragment = new DOMParser().parseFromString(htmlStr, 'text/html');
-return fragment.firstChild;
+return fragment.body.firstChild;
 ```
 
 
@@ -142,4 +142,42 @@ return fragment.firstChild;
 
 
 
-感兴趣的童鞋可以做 `benchmark`，肯定 `DOMParser` 是最慢的。而 `innerHTML` 和 `DocumentFragment` 的方式差不太多。当然最快的是`DocumentFragment`, 具体可参考[三者性能比较](https://jsperf.com/str-to-element/1)。
+感兴趣的童鞋可以做 `benchmark`，肯定 `DOMParser` 是最慢的。而 `innerHTML` 和 `DocumentFragment` 的方式实际测试差不太多。当然最快的还是`DocumentFragment`, 具体可参考[三者性能比较](https://jsperf.com/str-to-element/1)。
+
+```javascript
+// 比较两个节点的名字
+export function compareNodeNames(fromEl, toEl) {
+  var fromNodeName = fromEl.nodeName;
+  var toNodeName = toEl.nodeName;
+  
+  if(fromNodeName === toNodeName) return true;
+  
+  // 对于虚拟 DOM，其名字可能不是大写的。
+  if(toEl.actualize && fromNodeName.charCodeAt(0) < 91 && toNodeName.charCodeAt(0) > 90) {
+    return fromNodeName === toNodeName.toUpperCase();
+  }else {
+    return false;
+  }
+}
+
+// 创建元素节点（命名空间）
+export function createElementNS(name, namespaceURI) {
+  // 如果是 HTML 元素或者没有指定命名空间
+  return !namespaceURI || namespaceURI === NS_XHTML
+    ? document.createElement(name)
+    : document.createElementNS(namespaceURI, name);
+}
+
+// 把一个节点的所有子元素拷贝到另一个节点中 
+export function moveChildren(fromEl, toEl) {
+  // 这是一个常用技巧，通过遍历兄弟节点实现拷贝
+  var curChild = fromEl.firstChild;
+  while(curChild) {
+    var nextChild = curChild.nextSibling;
+    toEl.appendChild(curChild);
+    curChild = nextChild;
+  }
+  return toEl;
+}
+```
+
