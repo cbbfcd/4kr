@@ -181,3 +181,140 @@ export function moveChildren(fromEl, toEl) {
 }
 ```
 
+
+
+### `morphAttrs.js`
+
+对  `fromNode`  和 ` toNode`  进行  `Diff`  并  `Patch`  到原始节点。实现就是遍历  `toNode`  节点的属性与 `fromNode` 做比较，然后更新 `fromNode`，再删除已经不在 `toNode`  的属性。 
+
+```javascript
+export default function morphAttrs(fromNode, toNode) {
+  // 一堆变量声明，很好理解，命名规范就是这么舒服
+  var attrs = toNode.attributes;
+  var i;
+  var attr;
+  var attrName;
+  var attrNamespaceURI;
+  var attrValue;
+  var fromValue;
+  
+  // 更新原始 DOM 的属性
+  for (i = attrs.length - 1; i >= 0; --i) {
+    attr = attrs[i];
+    attrName = attr.name;
+    attrNamespaceURI = attr.namespaceURI;
+    attrValue = attr.value;
+    
+    // 处理 XML 文档
+    if (attrNamespaceURI) {
+      attrName = attr.localName || attrName; // 这个 API 废弃了都
+      fromValue = fromNode.getAttributeNS(attrNamespaceURI, attrName);
+      
+      if (fromValue !== attrValue) {
+        fromNode.setAttributeNS(attrNamespaceURI, attrName, attrValue);
+      }
+    }
+    else {
+      fromValue = fromNode.getAttribute(attrName);
+      
+      if (fromValue !== attrValue) {
+        fromNode.setAttribute(attrName, attrValue);
+      }
+    }
+    
+    // 如果节点属性不再出现在 toNode 中，那么就移除 fromNode 中的同名属性
+    attrs = fromNode.attributes;
+    
+    for (i = attrs.length - 1; i >= 0; --i) {
+      attr = attrs[i];
+      // 检测这个属性是不是被声明了，有没有赋值，是不是标准属性名都算
+      if (attr.specified !== false) {
+        attrName = attr.name;
+        attrNamespaceURI = attr.namespaceURI;
+        
+        if (attrNamespaceURI) {
+          attrName = attr.localName || attrName;
+          
+          // 新节点没有就移除老节点对应的属性
+          if (!toNode.hasAttributeNS(attrNamespaceURI, attrName)) {
+            fromNode.removeAttributeNS(attrNamespaceURI, attrName);
+          }
+        }
+        else {
+          if (!toNode.hasAttribute(attrName)) {
+            fromNode.removeAttribute(attrName);
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+
+
+关于 `attr.spcified`，可以参考这里的[讨论](https://stackoverflow.com/questions/14489237/what-is-attribute-specified-for-a-dom-elements-attributes)和[规范](https://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-637646024)，总的来说，抛开 `IE` 浏览器这个大坑，现代浏览器中都支持的很好，其作用类似于 `element.hasAttribute(attrName)`。
+
+
+
+### `specialElHandlers.js`
+
+这个里面应该有一些黑科技或者冷门知识点，不然就不够 `special` 了。😄
+
+```javascript
+// 同步 Boolean 属性，比如 disabled checked selected
+// 为啥要有这么一步处理呢？方法名中也暗藏玄机，就是引出一个问题： attributes 和 properties 的区别！
+function syncBooleanAttrProp(fromEl, toEl, name) {
+  if (fromEl[name] !== toEl[name]) {
+    fromEl[name] = toEl[name];
+    // 比如用 disabled attribute 来禁用/取消禁用，只需要 set/remove 掉该 attribute
+    if (fromEl[name]) {
+      fromEl.setAttribute(name, '');
+    }
+    else {
+      fromEl.removeAttribute(name);
+    }
+  }
+}
+
+export default {
+  
+}
+```
+
+
+
+#### `what's the difference between attributes and properties in HTML?`
+
+这里附上 [stackoverflow 上的一篇问答](https://stackoverflow.com/questions/6003819/what-is-the-difference-between-properties-and-attributes-in-html)。其中高票答案真心不错！下边还有一个更通俗易懂的答案也值得参考。
+
+> **The HTML attribute and the DOM property are different things, even when they have the same name.**
+
+如果不想看链接，大致说明一下：
+
+首先需要明确的就是 `attributes` 和 `properties` 虽然可能名字会一样或者类似，但是绝对不是一个东西。有坑的！
+
+一般我们通过  `node.xxx`  获取  `properties`，通过 `node.getAttribute('xxx')` 获取 `attributes`。
+
+```javascript
+<input id="id" type="text" value="hello"/>
+  
+// inputNode.value 和 inputNode.getAttribute('value') 获取的结果只有初始是一致的
+// 当你输入 'world' 的时候，再获取上面的值，前者是 'world'，后者依然是 hello
+```
+
+
+
+一些情况：
+
+- 诸如  `id` ，不管是 `properties` 或者 `attributes` 获取的表现都是一致的
+
+- `input`  的 `value` 这类的如上。
+
+- `disabled`  这种更坑，初始化的时候 `disabled property` 肯定是 `false` 的，但是当你增加一个 `disabled attirbute`，不管设置什么值，都是禁用。 
+
+```javascript
+// 默认 btn.disabled 是 false
+// 然后，设置 btn.setAttribute('disabled', 'false')，其实随便设置啥值都行，只要有 diabled 这个 attribute 存在，就是禁用了，无关其值。除非 remove 掉该 attribute！
+```
+
