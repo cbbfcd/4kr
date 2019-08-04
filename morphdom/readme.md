@@ -315,6 +315,7 @@ export default {
 
 ```javascript
 // 默认 btn.disabled 是 false
-// 然后，设置 btn.setAttribute('disabled', 'false')，其实随便设置啥值都行，只要有 diabled 这个 attribute 存在，就是禁用了，无关其值。除非 remove 掉该 attribute！
+// 然后，设置 btn.setAttribute('disabled', 'false')，其实随便设置啥值都行，
+// 只要有 diabled 这个 attribute 存在，就是禁用了，无关其值。除非 remove 掉该 attribute！
 ```
 
