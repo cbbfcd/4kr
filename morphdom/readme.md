@@ -142,7 +142,21 @@ return fragment.firstChild;
 
 
 
-感兴趣的童鞋可以做 `benchmark`，肯定 `DOMParser` 是最慢的。而 `innerHTML` 和 `DocumentFragment` 的方式实际测试差不太多。当然最快的还是`DocumentFragment`, 具体可参考[三者性能比较](https://jsperf.com/str-to-element/1)。
+- `template`
+
+```javascript
+let template = doc.createElement('template');
+template.innerHTML = str;
+return template.content.firstChild;
+```
+
+
+
+感兴趣的童鞋可以做 `benchmark`，肯定 `DOMParser` 是最慢的。而 `innerHTML` 和 `DocumentFragment` 的方式实际测试差不太多。当然最快的还是`DocumentFragment`, 具体可参考[四者性能比较](https://jsperf.com/str-to-element/1)。
+
+**更新**：新增加的 `template` 方式实际测试性能也很好。只是 `IE` 貌似不支持，但是其在功能上比 `createContextualFragment` 有更少的限制，所以优先级是最高的！
+
+![e4F9df.png](https://s2.ax1x.com/2019/08/06/e4F9df.png)
 
 ```javascript
 // 比较两个节点的名字
@@ -181,11 +195,13 @@ export function moveChildren(fromEl, toEl) {
 }
 ```
 
+今天发现有新的 `PR` [点击这里获取](https://github.com/patrick-steele-idem/morphdom/pull/159)。
 
+新增加了一种策略，就是用 `template` 来转字符串，我也增加了对应的测试案例。并改了优先级，现在是 `template > createContextualFragment > innerHTML ` ，[这里](https://stackoverflow.com/questions/494143/creating-a-new-dom-element-from-an-html-string-using-built-in-dom-methods-or-pro)有一个相关的问题可以参考。
 
 ### `morphAttrs.js`
 
-对  `fromNode`  和 ` toNode`  进行  `Diff`  并  `Patch`  到原始节点。实现就是遍历  `toNode`  节点的属性与 `fromNode` 做比较，然后更新 `fromNode`，再删除已经不在 `toNode`  的属性。 
+对  `fromNode`  和 ` toNode`  进行  `Diff`  并  `Patch`  到原始节点。实现就是遍历  `toNode`  节点的属性与 `fromNode` 做比较，然后更新 `fromNode`，再删除已经不在 `toNode`  中的属性。 
 
 ```javascript
 export default function morphAttrs(fromNode, toNode) {
@@ -277,8 +293,110 @@ function syncBooleanAttrProp(fromEl, toEl, name) {
   }
 }
 
+// 这种最常见的写法，其实就是一种策略模式
 export default {
-  
+  // 这里大写是为了和 node.nodeName 更方便的建立映射
+  OPTION: function(fromEl, toEl) {
+    // fromEl 就是 option 元素，其节点有两种可能
+		var parentNode = fromEl.parentNode;
+    if (parentNode) {
+    	var parentName = parentNode.nodeName.toUpperCase();
+      // https://developer.mozilla.org/zh-CN/docs/Web/HTML/Element/optgroup
+      if (parentName === 'OPTGROUP') {
+        parentNode = parentNode.parentNode;
+        parentName = parentNode && parentNode.nodeName.toUpperCase();
+      }
+      // 直到找到 SELECT，并且排除多选的情况
+      if (parentName === 'SELECT' && !parentNode.hasAttribute('multiple')) {
+      	if (fromEl.hasAttribute('selected') && !toEl.selected) {
+          // 这里是为了解决 EDGE 的一个 bug 做的 hack;
+          // https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/12087679/
+          fromEl.setAttribute('selected', 'selected');
+          fromEl.removeAttribute('selected');
+        }
+        // 不设置这个，syncBooleanAttrProp 也没用，可以自己验证一下
+        // 经过我的验证，在 chrome 中
+        // 如果设置了多选，removeAttribute 和直接设置 selectedIndex 都会使其为 -1；
+				// 如果不设置多选，removeAttribute 会使 selectedIndex 为 0，就变成默认选中第一个了；
+        // 所以不设置多选的时候，就算 removeAttribute('selected') 之后还是要手动 -1 一下。
+        parentNode.selectedIndex = -1;
+      }
+    }
+    // 同 disabled，只需要通过 setAttribute/removeAttribute 来表示 选/不选
+    syncBooleanAttrProp(fromEl, toEl, 'selected');
+  },
+  // value attribute 只是设置个初始值，就像 diabled 一样，如果只是改变 value attribute
+  // 而不是改变 value property，那将没啥影响。
+  // 纠正：在 chrome 浏览器中实际测试发现，setAttribute('value', 'xxx') 还是有效，
+  // 只是优先级低于 property 设置，如果通过 oninput 获取到输入，并由 setAttribute
+  // 动态设置 value 值的话，那么此时通过 inputNode.value 获取到的将是 undefined。天啦！
+  INPUT: function(fromEl, toEl) {
+    syncBooleanAttrProp(fromEl, toEl, 'checked');
+    syncBooleanAttrProp(fromEl, toEl, 'disabled');
+    // 所以最好是通过 value property 来更新，因为 setAttribute 只是相当于设置初始值。
+    if (fromEl.value !== toEl.value) {
+      fromEl.value = toEl.value;
+    }
+    if (!toEl.hasAttribute('value')) {
+      fromEl.removeAttribute('value');
+    }
+  },
+  TEXTAREA: function(fromEl, toEl) {
+    var newValue = toEl.value;
+    if (fromEl.value !== newValue) {
+      fromEl.value = newValue;
+    }
+    var firstChild = fromEl.firstChild;
+    if (firstChild) {
+      // 子节点应该是一个文本节点，这里的处理是为了 IE，
+      // 注意这里也就初始的时候 textarea.value === textarea.firstChild.nodeValue
+      // 后续输入值之后，textarea.firstChild.nodeValue 依旧不变。
+      // IE 设置 placeholder 作为其 node value，反之亦然, 下面的判断是为了避免空更新
+      var oldValue = firstChild.nodeValue;
+      if(oldValue == newValue || (!newValue && oldValue == fromEl.placeholder)) {
+         return;
+      }
+      // 都说了这玩意儿不会变，手动更呗
+      firstChild.nodeValue = newValue;
+    }
+  },
+  SELECT: function(fromEl, toEl){
+    // 这里主要是要重置 selectedIndex 的值，因为 OPTION 中可能已经暴力改变了其值
+    // 这个 handler 触发的时机是在 morph fromEl 之后，所以只需要遍历 fromEl 即可。
+    // 因为这个时候 fromEl 中的元素该加的加该删的删，都已经完成了
+    if (!toEl.hasAttribute('multiple')) {
+    	var selecedIndex = -1;
+      var i = 0;
+      var curChild = fromEl.firstChild;
+      var optgroup;
+      var nodeName;
+      
+      // walker
+      // 逻辑很清晰，一看就明白了
+      while(curChild) {
+        nodeName = curChild.nodeName && curChild.nodeName.toUpperCase();
+        if (nodeName === 'OPTGROUP') {
+          optgroup = curChild;
+          curChild = optgroup.firstChild;
+        }
+        else {
+          if (nodeName === 'OPTION') {
+            if (curChild.hasAttribute('selected')) {
+              selectedInxd = i;
+              break;
+            }
+            i++;
+          }
+          curChild = curChild.nextSibling;
+          if (!curChild && optgroup) {
+            curChild = optgroup.nextSibling;
+            optgroup = null;
+          }
+        }
+      }
+      fromEl.selectedIndex = selectedIndex;
+    }
+  }
 }
 ```
 
@@ -292,7 +410,7 @@ export default {
 
 如果不想看链接，大致说明一下：
 
-首先需要明确的就是 `attributes` 和 `properties` 虽然可能名字会一样或者类似，但是绝对不是一个东西。有坑的！
+首先需要明确的就是 `attributes` 和 `properties` 虽然可能名字会一样或者类似，但是绝对不是一个东西。有坑的！应该说 `DOM` 对象中有一个 `attributes` 属性，里面维护着可能与 `property` 同名的一些键值映射。但是二者并不总是 `1 1` 对映的。
 
 一般我们通过  `node.xxx`  获取  `properties`，通过 `node.getAttribute('xxx')` 获取 `attributes`。
 
@@ -309,13 +427,27 @@ export default {
 
 - 诸如  `id` ，不管是 `properties` 或者 `attributes` 获取的表现都是一致的
 
-- `input`  的 `value` 这类的如上。
+- `input`  的 `value` 这类的如上代码片段所示，不总是一一对映。
 
-- `disabled`  这种更坑，初始化的时候 `disabled property` 肯定是 `false` 的，但是当你增加一个 `disabled attirbute`，不管设置什么值，都是禁用。 
+- `disabled`  这种更坑，初始化的时候 `disabled property` 肯定是 `false` 的，但是当你增加一个 `disabled attirbute`，不管设置什么值，哪怕是 `xx.setAttribute('disabled', 'false')`，也是表示禁用。令人疑惑吧！ 
 
 ```javascript
 // 默认 btn.disabled 是 false
 // 然后，设置 btn.setAttribute('disabled', 'false')，其实随便设置啥值都行，
 // 只要有 diabled 这个 attribute 存在，就是禁用了，无关其值。除非 remove 掉该 attribute！
 ```
+
+这里在 `codesandbox` 上做一些验证：[点击这里](https://codesandbox.io/s/morphdom-test-c65ld)
+
+### `morphdom.js`
+
+**TODO**
+
+这个代码太长了，我 `copy` 这个文件加注释吧。[这里](./morphdom.js)
+
+
+
+## Think
+
+**TODO**
 
