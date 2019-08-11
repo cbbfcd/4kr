@@ -441,13 +441,5 @@ export default {
 
 ### `morphdom.js`
 
-**TODO**
-
 这个代码太长了，我 `copy` 这个文件加注释吧。[这里](./morphdom.js)
-
-
-
-## Think
-
-**TODO**
 

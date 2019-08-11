@@ -1,8 +1,15 @@
+/**
+ *  https://github.com/patrick-steele-idem/morphdom/blob/master/src/morphdom.js
+ * 
+ * @reader：波比小金刚
+ * 作者的原英文注释会被保留，能更清楚的知道作者的意图。
+ */
 'use strict';
 
 import { compareNodeNames, toElement, moveChildren, createElementNS, doc } from './util';
 import specialElHandlers from './specialElHandlers';
 
+// https://developer.mozilla.org/zh-CN/docs/Web/API/Node/nodeType
 var ELEMENT_NODE = 1;
 var DOCUMENT_FRAGMENT_NODE = 11;
 var TEXT_NODE = 3;
@@ -10,6 +17,7 @@ var COMMENT_NODE = 8;
 
 function noop() {}
 
+// 默认是使用 id 作为唯一 key
 function defaultGetNodeKey(node) {
     return node.id;
 }
@@ -21,7 +29,9 @@ export default function morphdomFactory(morphAttrs) {
             options = {};
         }
 
+        // string -> node
         if (typeof toNode === 'string') {
+            // 如果 fromNode 是根节点了，toNode 得一样处理
             if (fromNode.nodeName === '#document' || fromNode.nodeName === 'HTML') {
                 var toNodeHtml = toNode;
                 toNode = doc.createElement('html');
@@ -31,14 +41,23 @@ export default function morphdomFactory(morphAttrs) {
             }
         }
 
+        // 获取 node key，像 React 中的唯一 key 一样，是为了复用排列元素而不是销毁重建
         var getNodeKey = options.getNodeKey || defaultGetNodeKey;
+        // 增加节点前调用的钩子，如果返回 false，则节点不会被增加
         var onBeforeNodeAdded = options.onBeforeNodeAdded || noop;
+        // 增加节点后调用的钩子
         var onNodeAdded = options.onNodeAdded || noop;
+        // 节点更新前调用的钩子，如果返回 false，则节点不会更新
         var onBeforeElUpdated = options.onBeforeElUpdated || noop;
+        // 节点更新后调用的钩子
         var onElUpdated = options.onElUpdated || noop;
+        // 节点废弃前调用的钩子，如果返回 false，则节点不会被废弃
         var onBeforeNodeDiscarded = options.onBeforeNodeDiscarded || noop;
+        // 节点废弃后调用的钩子
         var onNodeDiscarded = options.onNodeDiscarded || noop;
+        // 在更新 from tree 的子节点之前调用，如果返回 false，则其子节点不会更新
         var onBeforeElChildrenUpdated = options.onBeforeElChildrenUpdated || noop;
+        // 如果 true 的话，只有 fromNode 和 toNode 的子节点会被 morphed
         var childrenOnly = options.childrenOnly === true;
 
         // This object is used as a lookup to quickly find all keyed elements in the original DOM tree.
@@ -53,6 +72,7 @@ export default function morphdomFactory(morphAttrs) {
             }
         }
 
+        // DFS，这个方法并不会删除节点，只是递归的通知用户，触发删除的钩子，删除的操作将在最后完成
         function walkDiscardedChildNodes(node, skipKeyedNodes) {
             if (node.nodeType === ELEMENT_NODE) {
                 var curChild = node.firstChild;
@@ -100,6 +120,11 @@ export default function morphdomFactory(morphAttrs) {
             walkDiscardedChildNodes(node, skipKeyedNodes);
         }
 
+        // 补充一些有关的资料和讨论
+        // https://github.com/patrick-steele-idem/morphdom/issues/15
+        // https://developer.mozilla.org/zh-CN/docs/Web/API/TreeWalker
+        // https://developer.mozilla.org/zh-CN/docs/Web/API/Document/createTreeWalker
+
         // // TreeWalker implementation is no faster, but keeping this around in case this changes in the future
         // function indexTree(root) {
         //     var treeWalker = document.createTreeWalker(
@@ -128,6 +153,7 @@ export default function morphdomFactory(morphAttrs) {
         //     }
         // }
 
+        // 初始化 fromNode 将有 key 的节点缓存
         function indexTree(node) {
             if (node.nodeType === ELEMENT_NODE || node.nodeType === DOCUMENT_FRAGMENT_NODE) {
                 var curChild = node.firstChild;
@@ -156,8 +182,10 @@ export default function morphdomFactory(morphAttrs) {
 
                 var key = getNodeKey(curChild);
                 if (key) {
+                    // 如果 lookup 中保存了相同的节点（key相同并且节点名字相同）就替换
                     var unmatchedFromEl = fromNodesLookup[key];
                     if (unmatchedFromEl && compareNodeNames(curChild, unmatchedFromEl)) {
+                        // 注意：parentNode.replaceChild(newChild, oldChild);
                         curChild.parentNode.replaceChild(unmatchedFromEl, curChild);
                         morphEl(unmatchedFromEl, curChild);
                     }
@@ -196,6 +224,8 @@ export default function morphdomFactory(morphAttrs) {
                 delete fromNodesLookup[toElKey];
             }
 
+            // https://developer.mozilla.org/zh-CN/docs/Web/API/Node/isSameNode
+            // 这个方法即将废弃，应该用 toNode === fromNode 代替
             if (toNode.isSameNode && toNode.isSameNode(fromNode)) {
                 return;
             }
@@ -215,6 +245,8 @@ export default function morphdomFactory(morphAttrs) {
                     return;
                 }
             }
+            // 我觉得 TEXTAREA 节点单独处理是因为在 IE 下其 placeholder 对应的才是 nodeValue 值。
+            // 没必要再去 morphChildren 的时候单独处理，这里直接就先处理了。
             if (fromEl.nodeName !== 'TEXTAREA') {
               morphChildren(fromEl, toEl);
             } else {
@@ -241,6 +273,7 @@ export default function morphdomFactory(morphAttrs) {
                 while (curFromNodeChild) {
                     fromNextSibling = curFromNodeChild.nextSibling;
 
+                    // 两节点一样，更新条件，跳过，继续
                     if (curToNodeChild.isSameNode && curToNodeChild.isSameNode(curFromNodeChild)) {
                         curToNodeChild = toNextSibling;
                         curFromNodeChild = fromNextSibling;
@@ -252,12 +285,16 @@ export default function morphdomFactory(morphAttrs) {
                     var curFromNodeType = curFromNodeChild.nodeType;
 
                     // this means if the curFromNodeChild doesnt have a match with the curToNodeChild
+                    // 这个为 true 其实表示两个节点一样
                     var isCompatible = undefined;
 
                     if (curFromNodeType === curToNodeChild.nodeType) {
                         if (curFromNodeType === ELEMENT_NODE) {
                             // Both nodes being compared are Element nodes
-
+                            // 1. 如果curToNode节点没有key，而curFromNode有key，那么 isCompatible = 其节点名字是否相等
+                            // 1. 如果curToNode节点没有key，curFromNode也没有key，那么 isCompatible = false
+                            // 3. 如果curToNode节点有key，而且和 curFromNode的key一样，isCompatible = false
+                            // 4. 如果curToNode节点有key，而且和 curFromNode的key不一样
                             if (curToNodeKey) {
                                 // The target node has a key so we want to match it up with the correct element
                                 // in the original DOM tree
@@ -308,6 +345,7 @@ export default function morphdomFactory(morphAttrs) {
                                 isCompatible = false;
                             }
 
+                            // 如果是相同节点，继续 morphEl 其子节点
                             isCompatible = isCompatible !== false && compareNodeNames(curFromNodeChild, curToNodeChild);
                             if (isCompatible) {
                                 // We found compatible DOM elements so transform
@@ -318,6 +356,7 @@ export default function morphdomFactory(morphAttrs) {
                             }
 
                         } else if (curFromNodeType === TEXT_NODE || curFromNodeType == COMMENT_NODE) {
+                            // 如果是文本节点或者注释节点，直接更新原始节点的nodeValue，然后就可以设置二者为一样的（isCompatible = true）。
                             // Both nodes being compared are Text or Comment nodes
                             isCompatible = true;
                             // Simply update nodeValue on the original node to
@@ -371,6 +410,7 @@ export default function morphdomFactory(morphAttrs) {
                             curToNodeChild = onBeforeNodeAddedResult;
                         }
 
+                        // 这里是为了支持 virtual dom
                         if (curToNodeChild.actualize) {
                             curToNodeChild = curToNodeChild.actualize(fromEl.ownerDocument || doc);
                         }
@@ -400,8 +440,14 @@ export default function morphdomFactory(morphAttrs) {
             // compatible (e.g. <div> --> <span> or <div> --> TEXT)
             if (morphedNodeType === ELEMENT_NODE) {
                 if (toNodeType === ELEMENT_NODE) {
-                    if (!compareNodeNames(fromNode, toNode)) {
+                    if (!compareNodeNames(fromNode, toNode))
+                     {
                         onNodeDiscarded(fromNode);
+                        // 这里只是将 fromNode 中的子节点全部 copy 到了 toNode 中，并返回 toNode。
+                        // 而不是直接替换？这里已经判断出新节点和原节点不是一种类型了，按道理应该直接替换掉不就完事儿？
+                        // 还硬生生造一个和 toNode 同类型的节点（只是子节点不同）去 morph。
+                        // 我只觉得是出于性能的考虑，如果是复杂的节点树比较，而且子节点大多都是一样的，只是顶层节点标签变了，比如 div -> section
+                        // 如果直接删除再替换是不是代价太大，还不如让 morphNode 也变成 section，再去 morph 一遍，说不定子元素还可以复用很多
                         morphedNode = moveChildren(fromNode, createElementNS(toNode.nodeName, toNode.namespaceURI));
                     }
                 } else {
@@ -413,7 +459,7 @@ export default function morphdomFactory(morphAttrs) {
                     if (morphedNode.nodeValue !== toNode.nodeValue) {
                         morphedNode.nodeValue = toNode.nodeValue;
                     }
-
+                    // 文本节点的话，就可以直接返回了
                     return morphedNode;
                 } else {
                     // Text node to something else
@@ -422,11 +468,15 @@ export default function morphdomFactory(morphAttrs) {
             }
         }
 
+        // 这种情况意味着 fromNode 会被删除，直接使用 toNode
         if (morphedNode === toNode) {
             // The "to node" was not compatible with the "from node" so we had to
             // toss out the "from node" and use the "to node"
             onNodeDiscarded(fromNode);
         } else {
+            // 执行这里只有两种可能：
+            // 第1: childrenOnly 为 true，这里传入的直接就是 fromNode 和 toNode
+            // 第2: childrenOnly 为 false,这里传入的是 moveChildren() 返回的新节点和 toNode
             morphEl(morphedNode, toNode, childrenOnly);
 
             // We now need to loop over any keyed nodes that might need to be
