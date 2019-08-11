@@ -16,5 +16,5 @@
 
 - [x] [on-change - 一个监控数据变化的小而精的项目](./on-change/readme.md)
 - [x] [slow-json-stringify- 一个快的令人发指的`JSON.stringify()` 补充库](./slow-json-stringify/readme.md)
-- [ ] [morphdom - real dom diff 真的会慢吗?](./morphdom/readme.md)
+- [x] [morphdom - real dom diff 真的会慢吗?](./morphdom/readme.md)
 
