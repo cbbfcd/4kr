@@ -1,7 +1,7 @@
 /**
  *  https://github.com/patrick-steele-idem/morphdom/blob/master/src/morphdom.js
  * 
- * @reader：波比小金刚
+ * @reader 波比小金刚
  * 作者的原英文注释会被保留，能更清楚的知道作者的意图。
  */
 'use strict';
