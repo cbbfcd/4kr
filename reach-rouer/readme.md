@@ -52,9 +52,7 @@
 `react-router` 有一个 `history` 库，但是作者想要更简单一点，`reach-router` 中直接抛弃了 `hash` 等方式，直接采用 `H5`新增加的 `history API` 实现，体积大大减小，而且兼容性很不错（`IE10+`）。
 
 
-
 其实没啥特别说的，实现的本质都是一样的，对于 `history API` 来说，就是监听 `popstate` 事件和在进行 `replaceState\pushState` 的时候手动触发监听，这样就基本覆盖所有情况了。
-
 
 
 作者其实就实现了 `listen` 和 `navigate` 两个函数，`listen` 不用多说，都必须有的，收集监听函数，然后在路由改变的时候触发。`navigate` 函数就是 `Link to` 组件的函数版本，一样的是执行 `replaceState/pushState` 然后手动的跑完 `listeners`，特别的地方就是返回了一个待决议的 `Promise` ，而决议的执行会放在 `React completely finished` 的阶段。具体我在源码中有很详细的注释，可以点击标题看看。
