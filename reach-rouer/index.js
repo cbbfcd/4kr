@@ -52,9 +52,9 @@ let Location = ({ children }) => (
     <LocationContext.Consumer>
         {
             // render props
+            // https://zh-hans.reactjs.org/docs/render-props.html#using-props-other-than-render
             context => 
                 context ? (
-                    // QUESTION: children 必须是函数？
                     children(context)
                 ) : (
                     <LocationProvider>{children}</LocationProvider>
@@ -113,6 +113,8 @@ function RedirectRequest(uri) {
 
 let isRedirect = o => o instanceof RedirectRequest
 
+// 这个思路绝了，利用 componentDidCatch 的捕捉能力，直接在子组件任何需要的地方抛出特定异常
+// 然后顶层组件 catch 到这个特殊异常之后，执行重定向操作。服！
 let redirectTo = to => {
     throw new RedirectRequest(to)
 }

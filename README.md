@@ -20,4 +20,10 @@
 - [x] [constate - 一个极其简单的React状态管理工具](./constate/readme.md)
 - [ ] [reach-router - 听说是撕逼之后自立门户之作?](./reach-rouer/readme.md)
 - [ ] [anu -- 司徒大大的作品，迷你React](./anu/readme.md)
+- [ ] [redux -- 第三次拜读经典](./redux/readme.md)
+- [ ] [redux-thunk -- 十几行代码一万多star!](./redux-thunk/readme.md)
+- [ ] [mobx -- 好像都出到 5 了，再看看吧](./mobx/readme.md)
+- [ ] [immer -- 也是神作啊！](./immer/readme.md)
+- [ ] [react-doc -- 认真看看官方文档](./react-doc/readme.md)
+- [ ] [react -- 这个，跪着也要看完](./react/readme.md)
 
