@@ -30,7 +30,7 @@ import {
 ////////////////////////////////////////////////////////////////////////////////
 
 // 利用 context 的穿透特性去派发路由数据
-// context 的资料：
+// context 的一些资料：
 // https://zhuanlan.zhihu.com/p/42654080
 // https://zhuanlan.zhihu.com/p/28037267 
 // https://zhuanlan.zhihu.com/p/33925435
@@ -44,7 +44,7 @@ const createNamedContext = (name, defaultValue) => {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Location Context/Provider
-let LocationContext = createNamedContext('location')
+let LocationContext = createNamedContext('Location')
 
 // sets up a listener if there isn't one already so apps don't need to be
 // wrapped in some top level provider
@@ -52,6 +52,8 @@ let LocationContext = createNamedContext('location')
 // Location 组件的目的是在任何地方使用的时候都可以通过 context 向下传递 location ，通过 render props 获取，不然可能获取不到的
 // 有点像 react-router 中的 withRouter 的作用一样
 let Location = ({ children }) => (
+    // NOTE: 如果外层没有 Provider 注入 value，那么 Consumer 消费的就是 createContext() 中传入的 defaultValue
+    // https://zh-hans.reactjs.org/docs/context.html#reactcreatecontext
     <LocationContext.Consumer>
         {
             // render props
@@ -71,6 +73,7 @@ class LocationProvider extends React.Component {
         history: PropTypes.object.isRequired
     }
 
+    // defaultProps 的解析过程在 state 初始化之前
     static defaultProps = {
         history: globalHistory
     }
@@ -80,6 +83,7 @@ class LocationProvider extends React.Component {
         refs: { unlisten: null }
     }
 
+    // context => { navigate, location}
     getContext() {
         let {
             props: {
@@ -113,7 +117,7 @@ class LocationProvider extends React.Component {
         // 所以导航到另一个页面，location 会变，在页面完全更新之后，就应该重置锁状态，让 Promise 绝议
         if (preState.context.location !== this.state.context.location) {
             // 在执行 navigate 函数的情况下，重置锁状态，让 Promise 绝议
-            // 之所以选择这个生命周期，是因为这个时候已经完成更新，百分百的 completely finished
+            // 之所以选择这个生命周期，是因为这个时候已经完成更新，百分百的 completely finished，这对一些进出场动画还是挺有用的
             this.props.history._onTransitionComplete()
         }
     }
@@ -124,7 +128,8 @@ class LocationProvider extends React.Component {
             props: { history }
         } = this
 
-        // 监听
+        // 监听，路由变化触发监听函数执行，向下派发新的 context
+        // NOTE: 当 Provider 的 value 值发生变化时，它内部的所有消费组件都会重新渲染
         refs.unlisten = history.listen(() => {
             // 在 nextTick 执行
             Promise.resolve().then(() => {
@@ -232,9 +237,9 @@ class RouteImpl extends React.PureComponent {
         let routes = React.children.map(children, createRoute(basepath));
         let { pathname } = location
 
-        // 如果匹配到了
         let match = pick(routes, pathname);
 
+        // 如果匹配到了
         if (match) {
             let {
                 params,
@@ -242,6 +247,56 @@ class RouteImpl extends React.PureComponent {
                 route,
                 route: { value: element } // NOTE: 还可以这样操作
             } = match
+
+            // remove the /* from the end for child routes relative paths
+            basepath = route.default ? basepath : route.path.replace(/\*$/, '')
+
+            let props = {
+                ...params,
+                uri,
+                location,
+                // 相对路径的处理
+                navigate: (to, options) => navigate(resolve(to, uri), options)
+            }
+
+            let clone = React.createElement(
+                element,
+                props,
+                element.props.children ? (
+                    // 递归下去
+                    <Router primary={primary}>{element.props.children}</Router>
+                ) : (
+                    undefined
+                )
+            )
+
+            // using 'div' for < 16.3 support
+            let FocusWrapper = primary ? FocusWrapper : component
+            // don't pass any props to 'div'
+            let wrapperProps = primary
+                ? { uri, location, component, ...domProps }
+                : domProps
+
+            return (
+                <BaseContext.Provider value={{baseuri: uri, basepath}}>
+                    <FocusWrapper {...wrapperProps}>{clone}</FocusWrapper>
+                </BaseContext.Provider>
+            )
+        } else {
+            // Not sure if we want this, would require index routes at every level
+            // warning(
+            //   false,
+            //   `<Router basepath="${basepath}">\n\nNothing matched:\n\t${
+            //     location.pathname
+            //   }\n\nPaths checked: \n\t${routes
+            //     .map(route => route.path)
+            //     .join(
+            //       "\n\t"
+            //     )}\n\nTo get rid of this warning, add a default NotFound component as child of Router:
+            //   \n\tlet NotFound = () => <div>Not Found!</div>
+            //   \n\t<Router>\n\t  <NotFound default/>\n\t  {/* ... */}\n\t</Router>`
+            // );
+            return null
         }
     }
 }
@@ -293,7 +348,7 @@ let createRoute = basepath => element => {
         }"/> has mismatched dynamic segments, ensure both paths have the exact same dynamic segments.`
     )
 
-    // 都匹配不上的时候，匹配 default 的路由
+    // 如果设置了 default
     if (element.props.default) {
         return {value: element, default: true}
     }
