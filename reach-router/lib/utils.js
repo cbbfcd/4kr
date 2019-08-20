@@ -178,6 +178,7 @@ let resolve = (to, base) => {
 
     // profile, /users/789 => /users/789/profile
     // QUESTION: 对于 /user/.././info 这样的话，是不是有问题？
+    // 验证了一下肯定是有问题的，这里应该是判断 includes('.') 吧！
     if (!startsWith(toSegments[0], '.')) {
         let pathname = baseSegments.concat(toSegments).join('/')
         return addQuery((basePathname === '/' ? '' : '/') + pathname, toQuery)

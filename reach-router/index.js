@@ -219,7 +219,7 @@ let Router = props => (
 
 class RouteImpl extends React.PureComponent {
     static defaultProps = {
-        primary: true
+        
     }
 
     render() {
@@ -271,7 +271,7 @@ class RouteImpl extends React.PureComponent {
             )
 
             // using 'div' for < 16.3 support
-            let FocusWrapper = primary ? FocusWrapper : component
+            let FocusWrapper = primary ? FocusHandler : component
             // don't pass any props to 'div'
             let wrapperProps = primary
                 ? { uri, location, component, ...domProps }
@@ -301,7 +301,180 @@ class RouteImpl extends React.PureComponent {
     }
 }
 
+let FocusContext = createNamedContext('Focus')
+
+let FocusHandler = ({uri, location, component, ...domProps}) => (
+    <FocusContext.Consumer>
+        {
+            requestFocus => (
+                <FocusHandlerImpl 
+                    {...domProps}
+                    component={component}
+                    requestFocus={requestFocus}
+                    uri={uri}
+                    location={location}
+                />
+            )
+        }
+    </FocusContext.Consumer>
+)
+
+// don't focus on initial render
+let initialRender = true;
+let focusHandlerCount = 0
+
+// 说实话，没发觉有啥大用处，而且我跑 demo 硬是没看出来效果
+class FocusHandlerImpl extends React.Component {
+    state = {}
+
+    // 为啥不惜用 polyfill 也要用这个生命周期，因为这个生命周期贯穿整个 React 从初始化到更新的过程
+    // 老的生命周期不满足这个要求
+    static getDerivedStateFromProps(nextProps, prevState) {
+        let initial = prevState.uri == null;
+        if (initial) {
+            return {
+                shouldFocus: true,
+                ...nextProps
+            }
+        } else {
+            let myURIChanged = nextProps.uri !== prevState.uri
+            let navigateUpToMe = 
+                prevState.location.pathname !== nextProps.location.pathname &&
+                nextProps.location.pathname === nextProps.uri
+
+            return {
+                shouldFocus: myURIChanged || navigateUpToMe,
+                ...nextProps
+            }
+        }
+    }
+
+    componentDidMount() {
+        focusHandlerCount++;
+        this.focus()
+    }
+
+    // 计步器，保证嵌套的节点也不会在初始化阶段 focus
+    componentWillUnmount() {
+        focusHandlerCount--;
+        if (focusHandlerCount === 0) {
+            initialRender = true
+        }
+    }
+
+    // 看起来嵌套的子组件是无论如何不会 focus 的
+    componentDidUpdate(preProps, preState) {
+        if (preProps.location !== this.props.location && this.state.shouldFocus) {
+            this.focus()
+        }
+    }
+
+    focus() {
+        if (ProcessingInstruction.env.NODE_ENV === 'test') return;
+
+        let { requestFocus } = this.props
+
+        if (requestFocus) {
+            requestFocus(this.node)
+        } else {
+            // 第一次 render 不会 focus
+            if (initialRender) {
+                initialRender = false;
+            } else {
+                // React polyfills [autofocus] and it fires earlier than cDM,
+                // so we were stealing focus away, this line prevents that.
+
+                // https://developer.mozilla.org/en-US/docs/Web/API/DocumentOrShadowRoot/activeElement
+                // https://developer.mozilla.org/zh-CN/docs/Web/API/Node/contains
+                if (!this.node.contains(document.activeElement)) {
+                    this.node.focus()
+                }
+            }
+        }
+    }
+
+    requestFocus = node => {
+        if (!this.state.shouldFocus) {
+            node.focus()
+        }
+    }
+
+    render() {
+        let {
+            children,
+            style,
+            requestFocus,
+            role = 'group',
+            component: Comp = 'div',
+            uri,
+            location,
+            ...domProps   
+        } = this.props
+
+        // https://developer.mozilla.org/zh-CN/docs/Web/HTML/Global_attributes/tabindex
+        return (
+            <Comp
+              style={{outline: 'none', ...style}}
+              tabIndex='-1'
+              role={role}
+              ref={n => (this.node = n)}
+              {...domProps}
+            >
+                <FocusContext.Provider value={this.requestFocus}>
+                    {this.props.children}
+                </FocusContext.Provider>
+            </Comp>
+        )
+    }
+}
+
+polyfill(FocusHandlerImpl);
+
+let k = () => {}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+// https://zh-hans.reactjs.org/docs/react-api.html#reactforwardref
+let { forwardRef } = React
+if (typeof forwardRef === 'undefined') {
+    forwardRef = C => C
+}
+
+let Link = forwardRef(({ innerRef, ...props}, ref) => (
+    <BaseContext.Consumer>
+        {
+            ({basepath, baseuri}) => (
+                <Location>
+                    {
+                        ({ location, navigate}) => {
+                            let { to, state, replace, getProps = k, ...anchorProps } = props
+                            let href = resolve(to, baseuri)
+                            let isCurrent = location.pathname = href
+                            let isPartiallyCurrent = startsWith(location.pathname, href)
+
+                            return (
+                                <a
+                                    ref={ref || innerRef}
+                                    aria-current={isCurrent ? 'page' : undefined}
+                                    {...anchorProps}
+                                    {...getProps({isCurrent, isPartiallyCurrent, href, location})}
+                                    href={href}
+                                    onClick={event => {
+                                        if (anchorProps.onClick) anchorProps.onClick(event)
+                                        if (shouldNavigate(event)) {
+                                            event.preventDefault()
+                                            navigate(href, {state, replace})
+                                        }
+                                    }}
+                                />
+                            )
+                        }
+                    }
+                </Location>
+            )
+        }
+    </BaseContext.Consumer>
+))
 
 function RedirectRequest(uri) {
     this.uri = uri
@@ -315,10 +488,97 @@ let redirectTo = to => {
     throw new RedirectRequest(to)
 }
 
+class RedirectImpl extends React.Component {
+    // Support React < 16 with this hook
+    // 因为没有 didCatch
+    componentDidMount() {
+        let {
+            props: {
+                navigate,
+                to,
+                from,
+                replace = true,
+                state,
+                noThrow,
+                baseuri,
+                ...props
+            }
+        } = this
+
+        Promise.resolve().then(() => {
+            let resolveTo = resolve(to, baseuri);
+            navigate(insertParams(resolveTo, props), {replace, state})
+        })
+    }
+
+    render() {
+        let {
+            props: { navigate, to, from, replace, state, noThrow, baseuri, ...props }
+        } = this
+
+        let resolveTo = resolve(to, baseuri)
+        if (!noThrow) redirectTo(insertParams(resolveTo, props))
+        return null
+    }
+}
+
+let Redirect = props => (
+    <BaseContext.Consumer>
+        {
+            ({baseuri}) => (
+                <Location>
+                    {
+                        locationContext => (
+                            <RedirectImpl {...locationContext} {...props} baseuri={baseuri}/>
+                        )
+                    }
+                </Location>
+            )
+        }
+    </BaseContext.Consumer>
+)
+
+Redirect.propTypes = {
+    from: PropTypes.string,
+    to: PropTypes.string.isRequired
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+let Match = ({path, children}) => (
+    <BaseContext.Consumer>
+        {
+            ({baseuri}) => (
+                <Location>
+                    {
+                        ({navigate, location}) => {
+                            let resolvePath = resolve(path, baseuri)
+                            let result = match(resolvePath, location.pathname)
+                            return children({
+                                navigate,
+                                location,
+                                match: result
+                                    ? {
+                                        ...result.params,
+                                        uri: result.uri,
+                                        path
+                                    }
+                                    : null
+                            })
+                        }
+                    }
+                </Location>
+            )
+        }
+    </BaseContext.Consumer>
+)
+
 let stripSlashes = str => str.replace(/(^\/+|\/+$)/g, "");
+
+let shouldNavigate = event =>
+    !event.defaultPrevented &&
+    event.button === 0 &&
+    !(event.metaKey || event.altKey || event.ctrlKey || event.shiftKey);
 
 let createRoute = basepath => element => {
     if (!element) {
