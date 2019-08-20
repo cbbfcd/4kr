@@ -53,6 +53,8 @@ let pick = (routes, uri) => {
         let route = ranked[i].route
 
         // QUESTION: 这里暂时不知道是干嘛
+        // NOTE: 路由都没匹配到的话，如果有 default 参数的组件，则匹配上！
+        // 看最后的返回， return match || default_ || null，也是这个意思，匹配不到就看有没有 default 路由
         if (route.default) {
             default_ = {
                 route,
@@ -258,6 +260,7 @@ let isSplat = segment => segment === '*'
 // 官网很清楚的阐述了其排名的策略：https://reach.tech/router/ranking
 let rankRoute = (route, index) => {
     // QUESTION: 这里为什么有 default 的时候就是 0 分，接着往后看看原因
+    // NOTE: /* 应该是 -1 分吧，那么 default 的优先级比他还高点，但是优先返回的还是 match ，也就是命中的！
     let score = route.default
         ? 0
         : segmentize(route.path).reduce((score, segment) => {

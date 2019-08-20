@@ -48,6 +48,9 @@ let LocationContext = createNamedContext('location')
 
 // sets up a listener if there isn't one already so apps don't need to be
 // wrapped in some top level provider
+// https://reach.tech/router/api/Location
+// Location 组件的目的是在任何地方使用的时候都可以通过 context 向下传递 location ，通过 render props 获取，不然可能获取不到的
+// 有点像 react-router 中的 withRouter 的作用一样
 let Location = ({ children }) => (
     <LocationContext.Consumer>
         {
@@ -88,9 +91,9 @@ class LocationProvider extends React.Component {
     }
 
     // https://www.zcfy.cc/article/2-minutes-to-learn-react-16s-componentdidcatch-lifecycle-method
-    componentDidCatch(err, errInfo) {
+    componentDidCatch(error, errInfo) {
         // NOTE: 直接把重定向当异常抛出，利用 componentDidCatch 来捕获
-        if (isRedirect(err)) {
+        if (isRedirect(error)) {
             let {
                 props: { 
                     history: { navigate }
@@ -100,7 +103,144 @@ class LocationProvider extends React.Component {
             // https://stackoverflow.com/questions/503093/how-do-i-redirect-to-another-webpage
             navigate(error.uri, { replace: true })
         } else {
-            throw err
+            throw error
+        }
+    }
+
+    // https://zh-hans.reactjs.org/docs/react-component.html#componentdidupdate
+    componentDidUpdate(preProps, preState) {
+        // 为啥比较 location，看 history 的代码，监听函数执行是 listener({location, action});
+        // 所以导航到另一个页面，location 会变，在页面完全更新之后，就应该重置锁状态，让 Promise 绝议
+        if (preState.context.location !== this.state.context.location) {
+            // 在执行 navigate 函数的情况下，重置锁状态，让 Promise 绝议
+            // 之所以选择这个生命周期，是因为这个时候已经完成更新，百分百的 completely finished
+            this.props.history._onTransitionComplete()
+        }
+    }
+
+    componentDidMount() {
+        let {
+            state: { refs },
+            props: { history }
+        } = this
+
+        // 监听
+        refs.unlisten = history.listen(() => {
+            // 在 nextTick 执行
+            Promise.resolve().then(() => {
+                // https://developer.mozilla.org/zh-CN/docs/Web/API/Window/requestAnimationFrame
+                // 在下一次重绘之前执行
+                requestAnimationFrame(() => {
+                    // 监听函数是接收了 location 和 action 参数的，这里不需要使用，因为
+                    // Location 组件的目的就只是为了在任何地方都可以为子组件提供 location 对象，使用场景比如：动画
+                    if (!this.unmounted) {
+                        this.setState(() => ({context: this.getContext()}))
+                    }
+                })
+            })
+        })
+    }
+
+    componentWillUnmount() {
+        let {
+            state: { refs }
+        } = this
+
+        this.unmounted = true
+        refs.unlisten()
+    }
+
+    render() {
+        let {
+            state: { context },
+            props: { children }
+        } = this
+        return (
+            // 所以官方文档说通过 render props 方式获取 location 数据呢！
+            <LocationContext.Provider value={context}>
+                {typeof children === 'function' ? children(context) : children || null}
+            </LocationContext.Provider>
+        )
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// https://reach.tech/router/api/ServerLocation
+// https://reach.tech/router/server-rendering
+let ServerLocation = ({url, children}) => (
+    <LocationContext.Provider 
+        value={{
+            location: {
+                pathname: url,
+                search: '',
+                hash: ''
+            },
+            // NOTE: 不还可以使用直接 import 的吗，这个方法里就应该直接加一层判断，而不是在这里加。
+            navigate: () => {
+                throw new Error(`you can't call navigate on the server`)
+            }
+        }}
+    >
+        {children}
+    </LocationContext.Provider>
+)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Sets baseuri and basepath for nested routers and links
+let BaseContext = createNamedContext('Base', { baseuri: '/', basepath: '/' })
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The main event, welcome to the show everybody.
+// https://reach.tech/router/api/Router
+// 反正就是把 base 和 location 的 context 都揉进 RouteImpl 里了
+let Router = props => (
+    <BaseContext.Consumer>
+        {
+            baseContext => (
+                <Location>
+                    {
+                        locationContext => (
+                            <RouteImpl {...baseContext} {...locationContext} {...props}/>
+                        )
+                    }
+                </Location>
+            )
+        }
+    </BaseContext.Consumer>
+)
+
+class RouteImpl extends React.PureComponent {
+    static defaultProps = {
+        primary: true
+    }
+
+    render() {
+        let {
+            location,
+            navigate,
+            basepath,
+            primary,
+            children,
+            baseuri,
+            component = 'div',
+            ...domProps
+        } = this.props
+        // utils.js 中需要的 routes 在这里生成的
+        let routes = React.children.map(children, createRoute(basepath));
+        let { pathname } = location
+
+        let match = pick(routes, pathname);
+
+        if (match) {
+            let {
+                params,
+                uri,
+                route,
+                route: { value: element } // NOTE: 还可以这样操作
+            } = match
         }
     }
 }
@@ -118,3 +258,57 @@ let isRedirect = o => o instanceof RedirectRequest
 let redirectTo = to => {
     throw new RedirectRequest(to)
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+let stripSlashes = str => str.replace(/(^\/+|\/+$)/g, "");
+
+let createRoute = basepath => element => {
+    if (!element) {
+        return null
+    }
+
+    invariant(
+        element.props.path || element.props.default || element.type === Redirect,
+        `<Route>: Children of <Router> must have a 'path' or 'default' prop, or be a 'Redirect'.
+        none found on element type ${element.type}
+        `
+    )
+
+    invariant(
+        !(element.type === Redirect && (!element.props.from || !element.props.to)),
+        `<Redirect from='${element.props.from}' to='${element.props.to}'> requres both 'from' and 'to' props when inside a <Router>`
+    )
+
+    // QUESTION: 为啥设计上，在 Router 中使用 Redirect 组件，from 和 to 必须同时要有，而且要匹配?
+    invariant(
+        !(
+            element.type === Redirect &&
+            !validateRedirect(element.props.from, element.props.to)
+        ),
+        `<Redirect from="${element.props.from} to="${
+            element.props.to
+        }"/> has mismatched dynamic segments, ensure both paths have the exact same dynamic segments.`
+    )
+
+    // 都匹配不上的时候，匹配 default 的路由
+    if (element.props.default) {
+        return {value: element, default: true}
+    }
+
+    let elementPath = element.type === Redirect ? element.props.from : element.props.path;
+
+    let path = 
+        elementPath === '/'
+            ? basepath
+            : `${stripSlashes(basepath)}/${stripSlashes(elementPath)}`
+    
+    return {
+        value: element,
+        default: element.props.default,
+        path: element.props.children ? `${stripSlashes(path)}/*` : path
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
