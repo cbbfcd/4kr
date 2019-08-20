@@ -232,6 +232,7 @@ class RouteImpl extends React.PureComponent {
         let routes = React.children.map(children, createRoute(basepath));
         let { pathname } = location
 
+        // 如果匹配到了
         let match = pick(routes, pathname);
 
         if (match) {
