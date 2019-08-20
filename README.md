@@ -21,7 +21,7 @@
 - [x] [slow-json-stringify- 一个快的令人发指的`JSON.stringify()` 补充库](./slow-json-stringify/readme.md)
 - [x] [morphdom - real dom diff 真的会慢吗?](./morphdom/readme.md)
 - [x] [constate - 一个极其简单的React状态管理工具](./constate/readme.md)
-- [ ] [reach-router - 听说是撕逼之后自立门户之作?](./reach-rouer/readme.md)
+- [ ] [reach-router - 听说是撕逼之后自立门户之作?](./reach-router/readme.md)
 - [ ] [anu -- 司徒大大的作品，迷你React](./anu/readme.md)
 - [ ] [redux -- 第三次拜读经典](./redux/readme.md)
 - [ ] [redux-thunk -- 十几行代码一万多 star!](./redux-thunk/readme.md)

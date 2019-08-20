@@ -13,3 +13,7 @@ Reach Router的改造版
 
 
 有关 [reach-rouer](https://github.com/reach/router) 的学习，我单独抽出来一个文件吧。
+
+## update
+
+这部分直接看[这里](../../reach-router/readme.md)
