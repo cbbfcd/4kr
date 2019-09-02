@@ -4,7 +4,7 @@ import {
     hasSymbol,
     REACT_ELEMENT_TYPE,
     hasOwnProperty
-} from './util';
+} from './utils';
 import { Renderer } from './createRenderer';
 import { Component } from './Component';
 
@@ -57,7 +57,7 @@ function hasValidKey(config) {
 // 虚拟 dom 工厂
 export function createElement(type, config, ...children) {
     let props = {},
-        tag = 5, // TODO: ????
+        tag = 5,
         key = null,
         ref = null,
         argsLen = children.length;
@@ -79,3 +79,82 @@ export function createElement(type, config, ...children) {
 
     return ReactElement(type, tag, props, key, ref, Renderer.currentOwner);
 }
+
+export function cloneElement(element, config, ...children) {
+    // Original props are copied
+    let props = Object.assign({}, element.props);
+
+    // Reserved names are extracted
+    let type = element.type
+    let key = element.key
+    let ref = element.ref
+    let tag = element.tag
+
+    // Owner will be preserved, unless ref is overridden
+    let owner = element._owner;
+    let argsLen = children.length;
+    if (config != null) {
+        if (hasValidRef(config)) {
+            ref = config.ref;
+            // NOTE: 偷个爹
+            owner = Renderer.currentOwner
+        }
+        if (hasValidKey(config)) key = '' + config.key
+    }
+
+    props = makeProps(type, config || {}, props, children, argsLen)
+
+    return ReactElement(type, tag, props, key, ref, owner)
+}
+
+// 工厂函数的作用就是方便建立同类型元素
+export function createFactory(type) {
+    var factory = createElement.bind(null, type);
+    factory.type = type
+    return factory
+}
+
+/*
+tag的值
+FunctionComponent = 1;
+ClassComponent = 2;
+HostPortal = 4; 
+HostComponent = 5;
+HostText = 6;
+Fragment = 7;
+*/
+function ReactElement(type, tag, props, key, ref, owner) {
+    var ret = {
+        type,
+        tag,
+        props
+    }
+
+    if (tag !== 6) {
+        ret.$$typeof = REACT_ELEMENT_TYPE
+        ret.key = key || null
+        let refType = typeNumber(ref);
+
+        // boolean, number, string, function, object
+        if (
+            refType === 2 ||
+            refType === 3 ||
+            refType === 4 ||
+            refType === 5 ||
+            refType === 8
+        ) {
+            if (refType < 4) {
+                ref += ''
+            }
+
+            ret.ref = ref;
+        } else {
+            ret.ref = null
+        }
+
+        ret._owner = owner
+    }
+
+    return ret;
+}
+
