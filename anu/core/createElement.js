@@ -158,3 +158,72 @@ function ReactElement(type, tag, props, key, ref, owner) {
     return ret;
 }
 
+// 根据 $$typeof 就可以判断
+export function isValidElement(vnode) {
+    return !!vnode && vnode.$$typeof === REACT_ELEMENT_TYPE; 
+}
+
+// 文本节点，单独处理 => {type: '#text', tag: 6, props: 'xxx'}
+export function createVText(text) {
+    return ReactElement('#text', 6, text + '');
+}
+
+// Escape and wrap key so it is safe to use as a reactid
+function escape(key) {
+    const escapeRegex = /[=:]/g
+    const escaperLookup = {
+        '=': '=0',
+        ':': '=2'
+    }
+    const escapeString = ('' + key).replace(escapeRegex, function(match) {
+        return escaperLookup[match]
+    })
+
+    return '$' + escapeString;
+}
+
+// 下面两个方法是一起的
+let lastText, flattenIndex, flattenObject;
+function flattenCb(context, child, key, childType) {
+    if (child === null) {
+        lastText = null
+        return
+    }
+    // number or string
+    if (childType === 3 || childType === 4) {
+        if (lastText) {
+            lastText.props += child
+            return
+        }
+        lastText = child = createVText(child)
+    } else {
+        lastText = null
+    }
+
+    if (!flattenObject[key]) {
+        flattenObject[key] = child
+    } else {
+        key = '.' + flattenIndex
+        flattenObject[key] = child
+    }
+    flattenIndex++;
+}
+
+export function fiberizeChildren(children, fiber) {
+    flattenObject = {}
+    flattenIndex = 0
+    if (children !== void 666) {
+        lastText = null // c 为 fiber.props.children
+        traverseAllChildren(children, '', flattenCb)
+    }
+    flattenIndex = 0
+    return (fiber.children = flattenObject);
+}
+
+function getComponentKey(component, index) {
+    if (typeof component === 'object' && component !== null && component.key !== null) {
+        return escape(component.key)
+    }
+    // Implicit key determined by the index in the set
+    return index.toString(36)
+}
