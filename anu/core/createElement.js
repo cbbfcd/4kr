@@ -203,12 +203,14 @@ function flattenCb(context, child, key, childType) {
     if (!flattenObject[key]) {
         flattenObject[key] = child
     } else {
+        // FIXME: 这里我怎么感觉应该是 key += '.' + flattenIndex 会比 .1 .2 .3 好点？
         key = '.' + flattenIndex
         flattenObject[key] = child
     }
     flattenIndex++;
 }
 
+// 最终的目的就是递归所有 children 的同时，把所有 child 放进一个对象，并挂载到 fiber
 export function fiberizeChildren(children, fiber) {
     flattenObject = {}
     flattenIndex = 0
@@ -220,10 +222,99 @@ export function fiberizeChildren(children, fiber) {
     return (fiber.children = flattenObject);
 }
 
+// 没有 key 就造一个
 function getComponentKey(component, index) {
     if (typeof component === 'object' && component !== null && component.key !== null) {
         return escape(component.key)
     }
     // Implicit key determined by the index in the set
     return index.toString(36)
+}
+
+const SEPARATOR = '.'
+const SUBSEPARATOR = ':'
+
+// 类似 React.Children 中的实现，看起来很复杂，拆开看其实很简单
+// 终止条件，所有的递归都要有终止条件，这里就是 invokeCallback，如果判断不是数组，其它类型都会执行这个
+// 是数组的话就继续递归下去，当然，这里还考虑到来 Map, Set 等数据类型的情况
+export function traverseAllChildren(children, nameSoFar, callback, bookKeeping) {
+    let childType = typeNumber(children);
+    let invokeCallback = false;
+    switch(childType) {
+        case 0: // undefined
+        case 1: // null
+        case 2: // boolean
+        case 5: // function
+        case 6: // symbol
+            children = null;
+            invokeCallback = true;
+            break;
+        case 3: // string
+        case 4: // number
+            invokeCallback = true;
+            break;
+        // 7 array
+        case 8: // object
+
+            // 如果是组件实例，或者是虚拟 dom 节点
+            if (children.$$typeof || children instanceof Component) {
+                invokeCallback = true;
+            }
+            // 转字符串
+            else if (children.hasOwnProperty('toString')) {
+                children = children + '';
+                invokeCallback = true;
+                childType = 3;
+            }
+            break;
+    }
+
+    if (invokeCallback) {
+        // flattenCb(context, children, key, childType)
+        callback(bookKeeping, children, nameSoFar === '' ? SEPARATOR + getComponentKey(children, 0) : nameSoFar, childType);
+        return 1;
+    }
+
+    // count of children found in the current subtree
+    let subtreeCount = 0;
+    const nextNamePrefix = nameSoFar === '' ? SEPARATOR : nameSoFar + SUBSEPARATOR;
+
+    // 如果是数组的话，遍历处理
+    if (children.forEach) {
+        // 数组、Map、Set
+        children.forEach(function(child, i) {
+            let nextName = nextNamePrefix + getComponentKey(child, i);
+            // 递归下去
+            subtreeCount += traverseAllChildren(child, nextName, callback, bookKeeping)
+        })
+        return subtreeCount;
+    }
+
+    // 数组已经处理过了，到这一步的话，应该就是 Map 或者是 Set 结构的了，可以用迭代器处理
+    const iteratorFn = getIterator(children);
+    if (iteratorFn) {
+        let iterator = iteratorFn.call(children),
+            child,
+            ii = 0,
+            step,
+            nextName;
+
+        while (!(step = iterator.next()).done) {
+            child = step.value;
+            nextName = nextNamePrefix + getComponentKey(child, ii++);
+            subtreeCount += traverseAllChildren(child, nextName, callback, bookKeeping)
+        }
+        return subtreeCount
+    }
+    throw 'children: type is invalid.';
+}
+
+// https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Symbol/iterator
+let REAL_SYMBOL = hasSymbol && Symbol['iterator'];
+let FAKE_SYMBOL = '@@iterator';
+function getIterator(a) {
+    let iteratorFn = (REAL_SYMBOL && a[REAL_SYMBOL]) || a[FAKE_SYMBOL];
+    if (iteratorFn && iteratorFn.call) {
+        return iteratorFn
+    }
 }
