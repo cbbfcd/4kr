@@ -33,4 +33,5 @@
 - [ ] [memoize-one -- React 官方推荐，利用闭包做缓存对比](./memoize-one/readme.md)
 - [ ] [wouter -- Hooks 加持的 1kb 的路由](./wouter/readme.md)
 - [ ] [react-router -- 好像出到 v5.01 了，再看看有啥变化](./react-router/readme.md)
+- [x] [copy-text-to-clipboard -- 如何写一个复制到剪贴板的方法](./copy-text-to-clipboard/readme.md)
 
