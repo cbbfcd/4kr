@@ -1,4 +1,4 @@
-# slow-json-stringify
+# copy-text-to-clipboard
 
 > [项目地址](https://github.com/sindresorhus/copy-text-to-clipboard)
 >
@@ -8,7 +8,7 @@
 
 代码真的很少，直接贴出来。
 
-```js
+```javascript
 'use strict';
 
 // 1. 用一个表单元素 textarea 来存目标字符串
