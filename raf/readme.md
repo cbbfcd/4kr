@@ -9,7 +9,10 @@
 代码真的很少，直接贴出来。
 
 ```javascript
-// 这部分利用动态属性查找特性，做了一些兼容的初始化工作
+// https://developer.mozilla.org/zh-CN/docs/Web/API/Window/requestAnimationFrame
+
+
+// 这部分利用动态属性查找，做了一些兼容的初始化工作
 var now = require('performance-now')
   , root = typeof window === 'undefined' ? global : window
   , vendors = ['moz', 'webkit']
@@ -33,8 +36,8 @@ if(!raf || !caf) {
   raf = function(callback) {
     if(queue.length === 0) {
       var _now = now()
-            // _now - last 其实是上一次函数执行时间（粗略的），所以 next 是为了让每次 callback 被调用的时候都是耗尽一帧的时间
-            // 也就是 callback 会在没一帧中执行一次，而且都是在下一个 tick，异步，不会阻塞主线程，所以优势就体现出来了
+            // _now - last 其实是上一次函数执行时间（粗略的），所以 next 是为了让每次 callback 被调用的时候都是尽量刚好耗尽一帧的时间
+            // 从而 callback 会在每一帧中执行一次，而且都是在下一个 tick 执行
         , next = Math.max(0, frameDuration - (_now - last))
       last = next + _now
       setTimeout(function() {
@@ -42,7 +45,7 @@ if(!raf || !caf) {
         // Clear queue here to prevent
         // callbacks from appending listeners
         // to the current frame's queue
-        queue.length = 0
+        queue.length = 0 // 这里就是释放锁
         for(var i = 0; i < cp.length; i++) {
           if(!cp[i].cancelled) {
             try{
@@ -52,7 +55,7 @@ if(!raf || !caf) {
             }
           }
         }
-      }, Math.round(next))
+      }, Math.round(next)) // 反正就是近似的耗尽一帧中剩余的时间
     }
     queue.push({
       handle: ++id,
