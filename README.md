@@ -22,7 +22,7 @@
 - [x] [morphdom - real dom diff 真的会慢吗?](./morphdom/readme.md)
 - [x] [constate - 一个极其简单的React状态管理工具](./constate/readme.md)
 - [x] [reach-router -- 听说是撕逼之后自立门户之作?](./reach-router/readme.md)
-- [ ] [purgecss -- 消除没有使用的 CSS，PostCss 真香！](./purgecss/readme.md)
+- [x] [purgecss -- 消除没有使用的 CSS，PostCss 真香！](./purgecss/readme.md)
 - [ ] [Omi -- 当耐特又一作品](./omi/readme.md)
 - [ ] [anu -- 司徒大大的作品，迷你React](./anu/readme.md)
 - [ ] [redux -- 第三次拜读经典](./redux/readme.md)
