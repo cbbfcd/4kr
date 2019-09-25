@@ -37,4 +37,5 @@
 - [x] [copy-text-to-clipboard -- 如何写一个复制到剪贴板的方法](./copy-text-to-clipboard/readme.md)
 - [x] [raf -- 这个也是高频出现的，了解其 polyfill 实现](./raf/readme.md)
 - [x] [clone -- 学习如何写一个深度克隆](./clone/readme.md)
+- [ ] [fat -- 最快的动画引擎](./fat/readme.md)
 
