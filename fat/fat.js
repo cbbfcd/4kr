@@ -47,6 +47,8 @@
 
         if(SUPPORT_TRANSFORM || SUPPORT_TRANSITION || SUPPORT_FILTER) {
 
+            // 当初始的 HTML 文档被完全加载和解析完成之后，DOMContentLoaded 事件被触发
+            // 这里执行的方法就是判断了一下支持 transform 不，不支持就带个 vendor prefix。
             document.addEventListener("DOMContentLoaded", function(){
 
                 vendor = (function(){
@@ -93,6 +95,7 @@
          * http://matthewlein.com/ceaser/
          */
 
+        // TODO: 这里学习一下贝塞尔曲线吧，不然怎么都不好意思说你想写个动画引擎
         const builtin_easing = {
 
             "easeIn": [0.55, 0.085, 0.68, 0.53], // quadIn
