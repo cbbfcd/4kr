@@ -31,3 +31,17 @@
   
   > 也就是说你写的 `jsx` 最终经过 `babel` **转译** 一下，就变成了 `React.createElement(xxx)` 这样的调用了。而这个方法最终返回的就是一个对象（`虚拟 DOM`）。
 
+
+- 元素 ❓
+
+  > 元素应该是 `React` 中的最小单元了，其实质就是一个对象 `{type, props, key, ref, self, source, owner}`。
+  > 创建元素的方法 [createElement](https://github.com/facebook/react/blob/master/packages/react/src/ReactElement.js#L312)
+  > 看代码可知，`react element` 在生产环境下是不可变对象，不可增删属性，不可更改`writable、configurable、enumable`，总之，不可变的。
+  > 具体实现参考 [Object.freeze](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze)
+
+  > 元素是 `react` 世界中的砖瓦，组件是由 *元素 + UI逻辑* 构成
+
+  > 因为元素是不可变的，所以其映射到 `DOM` 上的视图如果要更新，肯定是传人了新的元素然后再 `ReactDom.render` 一次。这样的开销可想而知，为了解决这个问题，`React` 中增加了状态来更新视图。
+  > 当然还有 `diff`，`scheduler` 这些是后边的内容，不要着急
+
+  > 文档中已经提到了 `react` 最核心的一个特性：只更新它需要更新的！具体怎么实现的，继续探索。
