@@ -25,6 +25,9 @@
   > 我其实关注的是，为啥每个组件文件必须写一个 `import React from 'react';`，这个和 `jsx` 是不是有关系？
   > `babel` 现在是 `React` 官方推荐的提供 `jsx` 支持能力的工具，那么，如何实现的呢？
   > 其实可以参考 `babel-transform-react-jsx` 的[实现](https://github.com/babel/babel/blob/master/packages/babel-plugin-transform-react-jsx/src/index.js)，上面的问题就引刃而解了，必须 `import React` 是因为要执行 `React.createElement`，需要注入 `React` 对象到这个模块的上下文。
-  > `jsx` 也不是啥魔法，就是语法糖，最终还是变成了高阶函数的调用，返回一个虚拟 `DOM` 对象。
+  
+  > 对于怎么实现的，我把文件摘出来，写了详细的注释。参见[babel-jsx-plugin](./jsx/index.js)
   > *PS：了解一下 babel 插件挺好的！*
+  
+  > 也就是说你写的 `jsx` 最终经过 `babel` **转译** 一下，就变成了 `React.createElement(xxx)` 这样的调用了。而这个方法最终返回的就是一个对象（`虚拟 DOM`）。
 
