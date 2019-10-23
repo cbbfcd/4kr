@@ -45,3 +45,14 @@
   > 当然还有 `diff`，`scheduler` 这些是后边的内容，不要着急
 
   > 文档中已经提到了 `react` 最核心的一个特性：只更新它需要更新的！具体怎么实现的，继续探索。
+
+
+- 组件 & props ❓
+
+  > 组件可以看成是一个函数，函数执行后返回一个 `react` 元素。
+  > props 就是组件之间的数据通信桥梁，虽然是单向向下的，也可以通过回调之类的方式逆向通信
+  > props 是不可变的，组件应该是一个纯函数，接收一样的 props，就一定有一样的输出。那么如何处理副作用？别忘了还有 `state`！
+  > 组件有两种形式，一种是函数式的组件，一种是 `class` 组件。两者等价，只是在一些能力上有所不同。
+
+  > 对于 [class 组件](https://github.com/facebook/react/blob/master/packages/react/src/ReactBaseClasses.js)，可以见这里的实现。
+  
