@@ -279,3 +279,14 @@ export const parse = (obj, paren, wrapper) => {
     return outer + blocks;
 };
 ```
+
+# so
+
+整理一下实现思路：
+
+利用模版字符串的能力，实现一个最终返回组件的函数，这里面 mixin 进去了 className 到 props 里面。
+
+组件有了类名，剩下的就应该是把样式表给弄到 header 里面去，这个是在 css 方法里面的 hash 中实现的。
+
+所以就是很简单的思想，我给组件整一个类名，这个类名对应的 css 我加到 header 中，ok，那就完事儿了。
+
