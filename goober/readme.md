@@ -123,6 +123,7 @@ export const compile = (str, defs, data) => {
         // If this is a function we need to:
 
         // ⚠️：这里其实是针对 className 处理的情况，如果看的懵逼就结合测试 case 一起看
+        // https://github.com/cristianbote/goober/pull/68/files#diff-a785c8e0c9a37fab4a83fe40d77a5ba9
         if (tail && tail.call) {
           // 1. Call it with `data`
           const res = tail(data);
@@ -146,10 +147,34 @@ export const compile = (str, defs, data) => {
 }
 ```
 
+## [getSheet](https://github.com/cristianbote/goober/blob/master/src/core/get-sheet.js)
+
+```js
+const GOOBER_ID = "_goober";
+const ssr = {
+    data: ""
+};
+export const getSheet = target => {
+    try {
+        // https://www.zhangxinxu.com/wordpress/2017/07/js-window-self/
+        let sheet = target ? target.querySelector('#' + GOOBER_ID) : self[GOOBER_ID];
+        if (!sheet) {
+            let _target = target || document.head;
+            // 注意这里的字符串是有一个空格的，所以获取到的 firstChild nodeType === 3
+            _target.innerHTML += '<style id="' + GOOBER_ID + '"> </style>';
+            sheet = _target.lastChild;
+        }
+        return sheet.firstChild;
+    } catch (e) {}
+    return ssr;
+};
+```
+
 
 ## [hash](https://github.com/cristianbote/goober/blob/master/src/core/hash.js)
 
 ```js
+// 这几个方法比较简单，就不粘贴出来了，可以自行看看
 import { toHash } from "./to-hash";
 import { update } from "./update";
 import { astish } from "./astish";
@@ -173,11 +198,14 @@ let cache = {
 export const hash = (compiled, sheet, g, append) => {
     // generate hash
     const compString = JSON.stringify(compiled);
+    // toHash 就是每一个 char | 8 然后全部加起来得到的数字
     const className = cache[compString] || (cache[compString] = g ? "" : toHash(compString));
 
     // Parse the compiled
     const parsed = cache[className] || (
         cache[className] = parse(
+            // 这个方法里面有一些比较复杂的正则，涉及捕获分组啥的
+            // 可以使用正则可视化工具看看：http://wangwl.net/static/projects/visualRegex/#flags=gi&source=%2F(%3F%3A(%5Ba-z0-9-%25%40%5D%2B)%20*%3A%3F%20*(%5B%5E%7B%3B%5D%2B%3F)%3B%7C(%5B%5E%3B%7D%7B%5D*%3F)%20%2B%7B)%7C(%7D)%2F&match=prop%3A%20%7B%20a%3A%201%7D%3B&method=exec
             compiled[0] ? astish(compiled) : compiled,
             className
         )
@@ -188,5 +216,66 @@ export const hash = (compiled, sheet, g, append) => {
 
     // return hash
     return className.slice(1);
+};
+```
+
+## [parse.js](https://github.com/cristianbote/goober/blob/master/src/core/parse.js)
+
+```js
+/**
+ * Parses the object into css, scoped, blocks
+ * @param {Object} obj 
+ * @param {String} paren 
+ * @param {String} wrapper 
+ */
+export const parse = (obj, paren, wrapper) => {
+    let current = "";
+    let blocks = "";
+    let outer = "";
+    
+    // If we're dealing with keyframes just flatten them
+    if (/^@[k|f]/.test(wrapper)) {
+      // Return the wrapper, which should be the @keyframes selector
+      // and stringify the obj which should be just flatten 
+      return wrapper + JSON.stringify(obj).replace(/","/g, ";").replace(/"|,"/g, "").replace(/:{/g, "{");
+    }
+    
+    for (let key in obj) {
+        const val = obj[key];
+        
+        // If this is a 'block'
+        if (typeof val === "object") {
+
+            // Regular selector
+            let next = paren + " " + key;
+            
+            // Nested
+            if (/&/g.test(key)) next = key.replace(/&/g, paren);
+    
+            // Media queries or other
+            if (key[0] == '@') next = paren;
+    
+            // Call the parse for this block
+            blocks += parse(val, next, next == paren ? key : wrapper || '');
+        } else {
+            if (/^@i/.test(key)) outer = key + " " + val + ";";
+            // Push the line for this property
+            else current += key.replace(/[A-Z]/g, "-$&").toLowerCase() + ":" + val + ";";
+        }
+    }
+    
+    // If we have properties
+    if (current.charCodeAt(0)) {
+        // Standard rule composition
+        const rule = paren + "{" + current + "}";
+        
+        // With wrapper
+        if (wrapper) return blocks + wrapper + "{" + rule + "}";
+    
+        // Else just push the rule
+        return outer + rule + blocks;
+    }
+  
+    return outer + blocks;
 };
 ```
