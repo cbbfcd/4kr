@@ -78,10 +78,18 @@ function css(val) {
     // 讲道理这里的上下文就是 styled 中的上下文对象，所以可以拿到 ctx.p ctx.o 的
     const ctx = this || {};
     // 如果 val 是一个函数，比如：styled('div')(props => `disply: flex`)
+
+    // ⚠️ 这里的参数 val 是有几种情况的：
+    // 1. 是个字符串，比如 styled('div')`hello world!` val = 'hello world!'
+    // 2. 是个函数，比如 styled('div')(p => `hello world!`) val = p => 'hello world!'
+    // 3. 是个数组，比如 styled('div')`hello ${name}!` 完整参数此时是这 [['hello', ''], 'tom']，所以此时 val = ['hello', '']
     const _val = val.call ? val(ctx.p) : val;
 
     // 到这里就要分别看看 hash compile getSheet 这几个方法了
     return hash(
+        // 1. 先看看这个 compile 方法，这里就是判断是数组就走这个方法，特意将参数第一位截了，
+        // 因为第一个参数就是字符串数组，之后的才是依赖
+        // 这里的 arguments 就是 css 函数的完整参数，其实就是 styled 中的 _args
         _val.map ? compile(_val, [].slice.call(arguments, 1), ctx.p) : _val,
         getSheet(ctx.target),
         ctx.g,
@@ -96,6 +104,48 @@ const glob = css.bind({ g: 1 });
 
 export { css, glob };
 ```
+
+## [compile.js](https://github.com/cristianbote/goober/blob/master/src/core/compile.js)
+
+```js
+/**
+ * Can parse a compiled string, from a tagged template
+ * @param {String} value
+ * @param {Object} [props]
+ */
+export const compile = (str, defs, data) => {
+    // 这里就很简单了，就是拼字符串出来
+    return str.reduce((out, next, i) => {
+        let tail = defs[i];
+    
+        // ⚠️：这是我看 2019-12-11 号新的 PR 的代码，我觉得更好理解一点
+        // PR URL: https://github.com/cristianbote/goober/pull/68/files#diff-3
+        // If this is a function we need to:
+
+        // ⚠️：这里其实是针对 className 处理的情况，如果看的懵逼就结合测试 case 一起看
+        if (tail && tail.call) {
+          // 1. Call it with `data`
+          const res = tail(data);
+
+          // 2. Grab the className
+          const className = res && res.props && res.props.className;
+
+          // 3. If there's none, see if this is basically a
+          // previously styled className by checking the prefix
+          const end = className || (/^go/.test(res) && res);
+
+          tail = (end
+            // If the `end` is defined means it's a className
+            ? "." + end
+            // If `res` it's not a vnode, we could just dump it
+            // since the value it's an dynamic value
+            : (res.props ? "" : res));
+        }
+        return out + next + (tail || "");
+      }, "");
+}
+```
+
 
 ## [hash](https://github.com/cristianbote/goober/blob/master/src/core/hash.js)
 
