@@ -40,3 +40,5 @@
 - [ ] [fat -- 最快的动画引擎](./fat/readme.md)
 - [x] [goober -- 只有 1 kb 大小的mini styled-component](./goober/readme.md)
 
+
+- [ ] [rust simple learn note](./rust/readme.md)
