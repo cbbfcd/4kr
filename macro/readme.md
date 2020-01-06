@@ -251,6 +251,7 @@ function applyMacros({
      *
      * See: https://github.com/kentcdodds/import-all.macro/issues/7
      */
+     // 这个 hack 是为了还原 scope
     state.file.scope.path.traverse({
       Identifier() {},
     })
@@ -407,4 +408,28 @@ Object.assign(module.exports, {
 
 `program` -> 寻找所有 `macros` 引用 -> `applyMacros(...{xxx})` -> `macro(...{xxx})`(这个其实就是 macroWrapper)
 
-给人以运行时的感觉，实质上还是将一堆 `plugin` 在 `babel` 转译过程中顺序的执行了。
+给人以运行时的感觉，实质上还是将一堆 `plugin` 在 `babel` 转译过程中顺序的执行了。这个顺序完全取决你声明引用的顺序了！
+
+怎么实现不用每次都要在 `babel.config.js` 中配置插件？
+
+-- 该库实现方案就是通过命名空间进行聚合，所有带 `macro` 的库被认为是宏插件，会被 `require`，当然 `require` 进来的就是 `macroWrapper` 方法了。
+
+怎么实现配置的？
+
+-- 两种方式，一种还是配置 `babel options`，一种是 `cosmiconfig` 文件
+
+怎么实现 `macro plugin`？
+
+-- 其实就是 `babel` 转译的时候，进来就找是不是 `macro` 插件，是的话就执行了 `macroWrapper` 函数，这个时候代码中使用到的地方就已经按照预想的替换掉了
+
+```js
+import penv from 'penv.macro'
+
+const base = penv({
+  'production': 'https://www.baidu.com'
+});
+
+// 已经变成了
+
+const base = 'https://www.baidu.com';
+```
