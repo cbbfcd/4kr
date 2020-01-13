@@ -70,9 +70,10 @@ export function* deleter([...text], startIndex = 0, endIndex = text.length) {
 }
 // 找不同
 // [...end] 类数组 -> 数组
+// 但是我对其可以处理 emoji 表示怀疑
 export function getOverlap(start, [...end]) {
     // findIndex 可以找到 NaN，底层使用了 Object.is 比较的，indexOf 可不行
-    // 如果有 NaN，返回的值是 text.length，那么 deleter 和 writer 都不会执行了
+    // 这里加了个 NaN 的作用很精彩，就是为了 node.textContent 和 text 一样的时候，不要返回 -1
     return [...start, NaN].findIndex((char, i) => end[i] !== char);
 }
 ```
