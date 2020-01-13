@@ -1,6 +1,7 @@
-> typical
+# typical
 
 > [项目地址](https://github.com/camwiegert/typical)
+
 > [在线DEMO](https://codepen.io/camwiegert/pen/rNNepYo)
 
 ## 源码分析
