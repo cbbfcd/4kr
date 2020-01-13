@@ -40,6 +40,7 @@
 - [ ] [fat -- 最快的动画引擎](./fat/readme.md)
 - [x] [goober -- 只有 1 kb 大小的mini styled-component](./goober/readme.md)
 - [x] [babel-plugin-macros -- 定义babel插件新方式：宏](./macro/readme.md)
+- [x] [typical -- 400byte的动画输入显示库](./typical/readme.md)
 
 
 - [ ] [rust simple learn note](./rust/readme.md)
